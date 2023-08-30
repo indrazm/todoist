@@ -1,18 +1,18 @@
 package handlers
 
 import (
-	"strconv"
-	"todoist/models"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"strconv"
+	"todoist/models"
 )
 
 var db *gorm.DB
 
 func init() {
 	var err error
-	db, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	db, err = gorm.Open(sqlite.Open("./database/todos.db"), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -98,8 +98,22 @@ func DeleteTask(c *fiber.Ctx) error {
 			"error":   err.Error(),
 		})
 	}
-	db.Delete(&task, taskId)
 
+	if err := db.Where("id = ?", taskId).First(&task).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Step 2: Row does not exist
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"message": "Invalid task id",
+				"error":   err.Error(),
+			})
+		} else {
+			// Handle other errors that might occur during the query
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"message": "Error retrieving tasks",
+				"error":   err.Error(),
+			})
+		}
+	}
 	var tasks []models.Task
 	if err := db.Find(&tasks).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
